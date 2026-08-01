@@ -31,9 +31,7 @@ export default function TransactionsSection({ transactions, onAddTransaction }) 
   const filtered =
     filter === 'all'
       ? investments
-      : filter === 'invest'
-      ? investments.filter((t) => t.type === 'invest')
-      : investments.filter((t) => t.type === 'received');
+      : investments.filter((t) => t.type === filter);
 
   // ...existing code...
   return (
@@ -44,34 +42,48 @@ export default function TransactionsSection({ transactions, onAddTransaction }) 
           <Typography variant="h5" fontWeight={700} color="primary" sx={{ mb: 1 }}>
             Transactions
           </Typography>
-          {/* Filter Section */}
-          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          {/* Filter Section - Responsive wrap */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
             <Box
               component="button"
-              sx={{ flex: 1, py: 1, borderRadius: 2, bgcolor: filter === 'all' ? '#bbdefb' : '#fff', border: '1px solid #90caf9', color: '#1976d2', fontWeight: 600, cursor: 'pointer' }}
+              sx={{ flex: '1 1 40%', minWidth: 90, py: 1, borderRadius: 2, bgcolor: filter === 'all' ? '#bbdefb' : '#fff', border: '1px solid #90caf9', color: '#1976d2', fontWeight: 600, cursor: 'pointer' }}
               onClick={() => setFilter('all')}
             >
               All
             </Box>
             <Box
               component="button"
-              sx={{ flex: 1, py: 1, borderRadius: 2, bgcolor: filter === 'invest' ? '#c8e6c9' : '#fff', border: '1px solid #66bb6a', color: '#2e7d32', fontWeight: 600, cursor: 'pointer' }}
+              sx={{ flex: '1 1 40%', minWidth: 90, py: 1, borderRadius: 2, bgcolor: filter === 'invest' ? '#c8e6c9' : '#fff', border: '1px solid #66bb6a', color: '#2e7d32', fontWeight: 600, cursor: 'pointer' }}
               onClick={() => setFilter('invest')}
             >
               Invested
             </Box>
             <Box
               component="button"
-              sx={{ flex: 1, py: 1, borderRadius: 2, bgcolor: filter === 'received' ? '#f8bbd0' : '#fff', border: '1px solid #f06292', color: '#ad1457', fontWeight: 600, cursor: 'pointer' }}
-              onClick={() => setFilter('received')}
+              sx={{ flex: '1 1 40%', minWidth: 90, py: 1, borderRadius: 2, bgcolor: filter === 'withdraw' ? '#fffde7' : '#fff', border: '1px solid #fbc02d', color: '#f57c00', fontWeight: 600, cursor: 'pointer' }}
+              onClick={() => setFilter('withdraw')}
             >
-              Received
+              Withdrawn
+            </Box>
+            <Box
+              component="button"
+              sx={{ flex: '1 1 40%', minWidth: 90, py: 1, borderRadius: 2, bgcolor: filter === 'profit' ? '#e8f5e9' : '#fff', border: '1px solid #66bb6a', color: '#388e3c', fontWeight: 600, cursor: 'pointer' }}
+              onClick={() => setFilter('profit')}
+            >
+              Profit
+            </Box>
+            <Box
+              component="button"
+              sx={{ flex: '1 1 40%', minWidth: 90, py: 1, borderRadius: 2, bgcolor: filter === 'loss' ? '#ffebee' : '#fff', border: '1px solid #e57373', color: '#d32f2f', fontWeight: 600, cursor: 'pointer' }}
+              onClick={() => setFilter('loss')}
+            >
+              Loss
             </Box>
           </Box>
         </Card>
       </Box>
       {/* Scrollable transaction list starts right after sticky header */}
-      <Box sx={{ flex: 1, overflowY: 'auto', pb: 10, mt: '110px', pt: 2, maxHeight: 'calc(100vh - 210px)', bgcolor: '#f6f9fb', borderRadius: 3 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', pb: 10, mt: '210px', pt: 2, maxHeight: 'calc(100vh - 210px)', bgcolor: '#f6f9fb', borderRadius: 3 }}>
         <InvestmentList
           transactions={filtered}
           onEdit={handleEdit}

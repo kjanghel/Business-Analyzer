@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatINR } from '../utils/formatINR';
 // Animation styles for card entrance and hover
 const cardAnimStyle = `
 @keyframes cardEnter {
@@ -29,67 +30,78 @@ export default function InvestmentList({ transactions, onEdit, onDelete }) {
       document.head.appendChild(style);
     }
   }, []);
-  if (!transactions || transactions.length === 0) {
+    if (!transactions || transactions.length === 0) {
+      return (
+        <Typography color="text.secondary" align="center" sx={{ mt: 2 }}>
+          No transactions yet.
+        </Typography>
+      );
+    }
+
+    // Sort transactions by date descending (if needed)
+    const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
     return (
-      <Typography color="text.secondary" align="center" sx={{ mt: 2 }}>
-        No transactions yet.
-      </Typography>
-    );
-  }
-
-  // Sort by date descending
-  const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return (
-    <Box>
-      {sorted.map((t) => (
-        <Card key={t.id} className="card-animate" sx={{ mb: 2, borderRadius: 3, boxShadow: 2, bgcolor: t.type === 'received' ? '#e8f5e9' : '#e3f2fd' }}>
-          <CardContent>
-            {t.type === 'invest' ? (
-              <>
-                <Typography variant="subtitle1" fontWeight={700} color="primary">
-                  Invested: <span style={{ color: '#1976d2' }}>₹{t.amount}</span>
+      <Box>
+        {sorted.map((t) => {
+          let cardColor = '#e3f2fd';
+          let label = '';
+          let labelColor = 'primary';
+          if (t.type === 'invest') {
+            cardColor = '#e3f2fd';
+            label = 'Invested';
+            labelColor = 'primary';
+          } else if (t.type === 'withdraw') {
+            cardColor = '#fffde7';
+            label = 'Withdrawn';
+            labelColor = 'warning.main';
+          } else if (t.type === 'profit') {
+            cardColor = '#e8f5e9';
+            label = 'Profit';
+            labelColor = 'success.main';
+          } else if (t.type === 'loss') {
+            cardColor = '#ffebee';
+            label = 'Loss';
+            labelColor = 'error.main';
+          }
+          return (
+            <Card key={t.id} className="card-animate" sx={{ mb: 2, borderRadius: 3, boxShadow: 2, bgcolor: cardColor }}>
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={700} color={labelColor}>
+                  {label}: <span style={{ color: labelColor }}>₹{formatINR(t.amount)}</span>
                 </Typography>
                 <Typography color="text.secondary" variant="body2">
                   Date: {t.date}
                 </Typography>
-                <Chip label={t.mode} size="small" sx={{ mt: 1, mb: 1 }} />
-              </>
-            ) : (
-              <>
-                <Typography variant="subtitle1" fontWeight={700} color="success.main">
-                  Received: ₹{t.amount}
-                </Typography>
-                <Typography color="text.secondary" variant="body2">
-                  Date: {t.date}
-                </Typography>
+                {t.mode && t.type === 'invest' && (
+                  <Chip label={t.mode} size="small" sx={{ mt: 1, mb: 1 }} />
+                )}
                 {t.info && (
                   <Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>
                     Info: {t.info}
                   </Typography>
                 )}
-              </>
-            )}
-            {/* Action Bar */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
-              <Box
-                component="button"
-                sx={{ px: 2, py: 0.5, borderRadius: 2, bgcolor: '#1976d2', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', fontSize: 14, boxShadow: 1, transition: 'background 0.2s', '&:hover': { bgcolor: '#1565c0' } }}
-                onClick={() => onEdit && onEdit(t)}
-              >
-                <EditIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} /> Edit
-              </Box>
-              <Box
-                component="button"
-                sx={{ px: 2, py: 0.5, borderRadius: 2, bgcolor: '#d32f2f', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', fontSize: 14, boxShadow: 1, transition: 'background 0.2s', '&:hover': { bgcolor: '#b71c1c' } }}
-                onClick={() => onDelete && onDelete(t.id)}
-              >
-                <DeleteIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} /> Delete
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      ))}
-    </Box>
-  );
-}
+                {/* Action Bar */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
+                  <Box
+                    component="button"
+                    sx={{ px: 2, py: 0.5, borderRadius: 2, bgcolor: '#1976d2', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', fontSize: 14, boxShadow: 1, transition: 'background 0.2s', '&:hover': { bgcolor: '#1565c0' } }}
+                    onClick={() => onEdit && onEdit(t)}
+                  >
+                    <EditIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} /> Edit
+                  </Box>
+                  <Box
+                    component="button"
+                    sx={{ px: 2, py: 0.5, borderRadius: 2, bgcolor: '#d32f2f', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', fontSize: 14, boxShadow: 1, transition: 'background 0.2s', '&:hover': { bgcolor: '#b71c1c' } }}
+                    onClick={() => onDelete && onDelete(t.id)}
+                  >
+                    <DeleteIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle' }} /> Delete
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </Box>
+    );
+  }

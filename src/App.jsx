@@ -15,7 +15,7 @@ function App() {
 
   return (
     <InvestmentsProvider>
-      <BrowserRouter>
+  <BrowserRouter basename="/Business-Analyzer">
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />

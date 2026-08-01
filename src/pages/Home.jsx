@@ -38,6 +38,8 @@ import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../utils/auth';
 import { getLoggedInUsername } from '../utils/auth';
+import { formatINR } from '../utils/formatINR';
+import BusinessPerformanceAreaChart, { getBusinessPerformanceData } from '../components/BusinessPerformanceAreaChart';
 
 export default function Dashboard({ transactions, onAddTransaction }) {
     // Use investments from context
@@ -88,39 +90,49 @@ export default function Dashboard({ transactions, onAddTransaction }) {
 
   // Investment summary
     const investedTx = investments.filter((t) => t.type === 'invest');
-    const receivedTx = investments.filter((t) => t.type === 'received');
+    const withdrawTx = investments.filter((t) => t.type === 'withdraw');
+    const profitTx = investments.filter((t) => t.type === 'profit');
+    const lossTx = investments.filter((t) => t.type === 'loss');
+
     const totalInvested = investedTx.reduce((sum, t) => sum + t.amount, 0);
-    const totalReceived = receivedTx.reduce((sum, t) => sum + t.amount, 0);
-    const returns = totalReceived - totalInvested;
-    const percentReturn = totalInvested > 0 ? ((returns / totalInvested) * 100).toFixed(2) : '0.00';
+    const totalWithdraw = withdrawTx.reduce((sum, t) => sum + t.amount, 0);
+    const totalProfit = profitTx.reduce((sum, t) => sum + t.amount, 0);
+    const totalLoss = lossTx.reduce((sum, t) => sum + t.amount, 0);
+
+    // Current Value = Invested + Profit - Loss - Withdrawn
+    const currentValue = totalInvested + totalProfit - totalLoss - totalWithdraw;
+    // Overall Profit/Loss = Profit - Loss
+    const overallPL = totalProfit - totalLoss;
+    // % Profit/Loss = (overallPL * 100) / totalInvested
+    const percentPL = totalInvested > 0 ? ((overallPL * 100) / totalInvested).toFixed(2) : '0.00';
 
   // Additional KPIs
-  const numInvestments = investedTx.length;
-  const numReceived = receivedTx.length;
+    const numInvestments = investedTx.length;
+    const numWithdraw = withdrawTx.length;
 
   // Date & amount metrics
-  const firstInvestObj = investedTx.length > 0 ? investedTx.reduce((min, t) => new Date(t.date) < new Date(min.date) ? t : min, investedTx[0]) : null;
-  const lastInvestObj = investedTx.length > 0 ? investedTx.reduce((max, t) => new Date(t.date) > new Date(max.date) ? t : max, investedTx[0]) : null;
-  const lastReceivedObj = receivedTx.length > 0 ? receivedTx.reduce((max, t) => new Date(t.date) > new Date(max.date) ? t : max, receivedTx[0]) : null;
-  // Investment duration (days between first and last investment)
-  let investDuration = '--';
-  if (firstInvestObj && lastInvestObj) {
-    const start = new Date(firstInvestObj.date);
-    const end = new Date(lastInvestObj.date);
-    investDuration = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24))) + ' days';
-  }
+    const firstInvestObj = investedTx.length > 0 ? investedTx.reduce((min, t) => new Date(t.date) < new Date(min.date) ? t : min, investedTx[0]) : null;
+    const lastInvestObj = investedTx.length > 0 ? investedTx.reduce((max, t) => new Date(t.date) > new Date(max.date) ? t : max, investedTx[0]) : null;
+    const lastWithdrawObj = withdrawTx.length > 0 ? withdrawTx.reduce((max, t) => new Date(t.date) > new Date(max.date) ? t : max, withdrawTx[0]) : null;
+    // Investment duration (days between first investment and today)
+    let investDuration = '--';
+    if (firstInvestObj) {
+        const start = new Date(firstInvestObj.date);
+        const end = new Date(); // today's date
+        investDuration = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24))) + ' days';
+    }
 
   // Prepare graph data points (group by date, sum invested/received)
     const graphData = [];
     const dateMap = {};
     investments.forEach((t) => {
         if (!dateMap[t.date]) {
-            dateMap[t.date] = { date: t.date, invested: 0, received: 0 };
+            dateMap[t.date] = { date: t.date, invested: 0, withdraw: 0 };
         }
         if (t.type === 'invest') {
             dateMap[t.date].invested += t.amount;
-        } else if (t.type === 'received') {
-            dateMap[t.date].received += t.amount;
+        } else if (t.type === 'withdraw') {
+            dateMap[t.date].withdraw += t.amount;
         }
     });
     Object.values(dateMap)
@@ -136,58 +148,69 @@ export default function Dashboard({ transactions, onAddTransaction }) {
             <Box sx={{ mt: 4, px: 2 }}>
                 {/* Top Widget: User Card with Total Return */}
                 <Box sx={{ mb: 3, overflow: 'hidden' }}>
-                                    {/* Card and Actions in a single row */}
-                                            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                                                {/* Card on left */}
-                                                <Card sx={{ flex: 1, borderRadius: 4, boxShadow: 3, overflow: 'hidden', minHeight: 110 }}>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: 'primary.main', color: 'primary.contrastText', p: 2 }}>
-                                                        <Avatar sx={{ bgcolor: 'primary.contrastText', color: 'primary.main', width: 48, height: 48, mr: 2, fontWeight: 700 }}>
-                                                            {username.charAt(0).toUpperCase()}
-                                                        </Avatar>
-                                                        <Typography variant="h6" fontWeight={700} sx={{ color: 'primary.contrastText', fontSize: '1.1rem' }}>
-                                                            {username.toLocaleUpperCase()}
-                                                        </Typography>
-                                                    </Box>
-                                                    <Box sx={{ bgcolor: '#fffde7', p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                                                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, mb: 1, width: '100%' }}>
-                                                            {/* Total Return Value Row */}
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, width: '100%' }}>
-                                                                <Typography variant="h6" fontWeight={700} color="text.primary" sx={{ minWidth: 110, fontSize: '1.1rem', textAlign: 'left' }}>Total return:</Typography>
-                                                                {returns >= 0 ? (
-                                                                    <TrendingUpIcon color="success" sx={{ fontSize: 24 }} />
-                                                                ) : (
-                                                                    <TrendingDownIcon color="error" sx={{ fontSize: 24 }} />
-                                                                )}
-                                                                <Typography variant="h5" fontWeight={800} color={returns >= 0 ? 'success.main' : 'error'} sx={{ fontSize: '1.6rem', textAlign: 'left' }}>
-                                                                    {returns}
-                                                                </Typography>
-                                                            </Box>
-                                                            {/* Total % Returns Row */}
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                                                                <Typography variant="h6" fontWeight={700} color="text.primary" sx={{ minWidth: 110, fontSize: '1.1rem', textAlign: 'left' }}>Total % return:</Typography>
-                                                                {returns >= 0 ? (
-                                                                    <TrendingUpIcon color="success" sx={{ fontSize: 24 }} />
-                                                                ) : (
-                                                                    <TrendingDownIcon color="error" sx={{ fontSize: 24 }} />
-                                                                )}
-                                                                <Typography variant="h5" fontWeight={800} sx={{ color: returns >= 0 ? 'success.main' : 'error.main', fontSize: '1.6rem', textAlign: 'left' }}>
-                                                                    {percentReturn}%
-                                                                </Typography>
-                                                            </Box>
-                                                        </Box>
-                                                    </Box>
-                                                </Card>
+                    {/* Card and Actions in a single row */}
+                    <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+                        {/* Card on left */}
+                        <Card sx={{ flex: 1, borderRadius: 4, boxShadow: 3, overflow: 'hidden', minHeight: 110 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: 'primary.main', color: 'primary.contrastText', p: 2 }}>
+                                <Avatar sx={{ bgcolor: 'primary.contrastText', color: 'primary.main', width: 48, height: 48, mr: 2, fontWeight: 700 }}>
+                                    {username.charAt(0).toUpperCase()}
+                                </Avatar>
+                                <Typography variant="h6" fontWeight={700} sx={{ color: 'primary.contrastText', fontSize: '1.1rem' }}>
+                                    {username.toLocaleUpperCase()}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ bgcolor: '#fffde7', p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, mb: 1, width: '100%' }}>
+                                    {/* Current Value Row */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, width: '100%' }}>
+                                        <Typography variant="h6" fontWeight={700} color="text.primary" sx={{ minWidth: 110, fontSize: '1.1rem', textAlign: 'left' }}>Current Value:</Typography>
+                                        <AttachMoneyIcon color="primary" sx={{ fontSize: 24 }} />
+                                        <Typography variant="h5" fontWeight={800} color={currentValue >= 0 ? 'success.main' : 'error'} sx={{ fontSize: '1.6rem', textAlign: 'left' }}>
+                                            ₹{formatINR(currentValue)}
+                                        </Typography>
+                                    </Box>
+                                    {/* Total Profit/Loss Row */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, width: '100%' }}>
+                                        <Typography variant="h6" fontWeight={700} color="text.primary" sx={{ minWidth: 110, fontSize: '1.1rem', textAlign: 'left' }}>Total {overallPL >= 0 ? 'Profit' : 'Loss'}:</Typography>
+                                        {overallPL >= 0 ? (
+                                            <TrendingUpIcon color="success" sx={{ fontSize: 24 }} />
+                                        ) : (
+                                            <TrendingDownIcon color="error" sx={{ fontSize: 24 }} />
+                                        )}
+                                        <Typography variant="h5" fontWeight={800} color={overallPL >= 0 ? 'success.main' : 'error.main'} sx={{ fontSize: '1.6rem', textAlign: 'left' }}>
+                                            ₹{formatINR(overallPL)}
+                                        </Typography>
+                                    </Box>
+                                    {/* % Profit/Loss Row */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                                        <Typography variant="h6" fontWeight={700} color="text.primary" sx={{ minWidth: 110, fontSize: '1.1rem', textAlign: 'left' }}>% {overallPL >= 0 ? 'Profit' : 'Loss'}:</Typography>
+                                        {overallPL >= 0 ? (
+                                            <TrendingUpIcon color="success" sx={{ fontSize: 24 }} />
+                                        ) : (
+                                            <TrendingDownIcon color="error" sx={{ fontSize: 24 }} />
+                                        )}
+                                        <Typography variant="h5" fontWeight={800} sx={{ color: overallPL >= 0 ? 'success.main' : 'error.main', fontSize: '1.6rem', textAlign: 'left' }}>
+                                            {percentPL}%
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Box>
+                        </Card>
                                                 {/* Action buttons in 4 rows on right */}
                                                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                                                <IconButton color="primary" size="large" aria-label="Add Investment" onClick={() => {setInitialData({type: 'invest'}); setShowAdd(true)}}>
-                                                                    {/* <AddCircleOutlineIcon /> */}
+                                                                <IconButton color="success" size="large" aria-label="Add Withdraw" onClick={() => {setInitialData({type: 'withdraw'}); setShowAdd(true)}}>
+                                                                    <CallReceivedIcon sx={{ fontSize: 22, color: '#388e3c', mb: 1 }} />
+                                                                    
+                                                                </IconButton>
+                                                                <IconButton color="success" size="large" aria-label="Add Profit" onClick={() => {setInitialData({type: 'profit'}); setShowAdd(true)}}>
                                                                     <span style={{ display: 'flex', alignItems: 'center' }}>
-                                                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="12" fill="#1976d2"/><path d="M7 17l5-5 5 5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M12 12V7" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="12" fill="#2e7d32"/><path d="M12 7v10" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 12l5-5 5 5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                                                     </span>
                                                                 </IconButton>
-                                                                <IconButton color="success" size="large" aria-label="Add Receive" onClick={() => {setInitialData({type: 'received'}); setShowAdd(true)}}>
+                                                                <IconButton color="success" size="large" aria-label="Add Loss" onClick={() => {setInitialData({type: 'loss'}); setShowAdd(true)}}>
                                                                     <span style={{ display: 'flex', alignItems: 'center' }}>
-                                                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="12" fill="#388e3c"/><path d="M17 7l-5 5-5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M12 12v5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="12" fill="#d32f2f"/><path d="M12 17V7" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M17 12l-5 5-5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                                                     </span>
                                                                 </IconButton>
                                                                 <IconButton color="info" size="large" aria-label="Upload investments.json" component="label">
@@ -239,37 +262,49 @@ export default function Dashboard({ transactions, onAddTransaction }) {
                 <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: '#e3f2fd', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
                     <AttachMoneyIcon sx={{ fontSize: 40, color: '#1976d2', mb: 1 }} />
                     <Typography variant="caption" fontWeight={700} sx={{ color: '#1976d2', fontSize: '1.1rem', mb: 0.5 }}>Invested</Typography>
-                    <Typography variant="h4" fontWeight={800} sx={{ color: '#1976d2', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{totalInvested}</Typography>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: '#1976d2', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{formatINR(totalInvested)}</Typography>
                 </Card>
-                {/* Received */}
+                {/* Withdrawn*/}
                 <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: '#fffde7', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
                     <CallReceivedIcon sx={{ fontSize: 40, color: '#388e3c', mb: 1 }} />
-                    <Typography variant="caption" fontWeight={700} sx={{ color: '#388e3c', fontSize: '1.1rem', mb: 0.5 }}>Received</Typography>
-                    <Typography variant="h4" fontWeight={800} sx={{ color: '#388e3c', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{totalReceived}</Typography>
+                    <Typography variant="caption" fontWeight={700} sx={{ color: '#388e3c', fontSize: '1.1rem', mb: 0.5 }}>Withdrawn</Typography>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: '#388e3c', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{formatINR(totalWithdraw)}</Typography>
                 </Card>
-                {/* Returns */}
-                <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: returns >= 0 ? '#e8f5e9' : '#ffebee', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
-                    {returns >= 0 ? (
-                    <TrendingUpIcon className="rising" sx={{ fontSize: 40, color: '#388e3c', mb: 1 }} />
+                {/* Total Profits */}
+                <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: '#e8f5e9', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
+                    <TrendingUpIcon sx={{ fontSize: 40, color: '#2e7d32', mb: 1 }} />
+                    <Typography variant="caption" fontWeight={700} sx={{ color: '#2e7d32', fontSize: '1.1rem', mb: 0.5 }}>Total Profits</Typography>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: '#2e7d32', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{formatINR(totalProfit)}</Typography>
+                </Card>
+                {/* Total Loss */}
+                <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: '#ffebee', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
+                    <TrendingDownIcon sx={{ fontSize: 40, color: '#d32f2f', mb: 1 }} />
+                    <Typography variant="caption" fontWeight={700} sx={{ color: '#d32f2f', fontSize: '1.1rem', mb: 0.5 }}>Total Loss</Typography>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: '#d32f2f', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{formatINR(totalLoss)}</Typography>
+                </Card>
+                {/* Overall Profit/Loss */}
+                <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: overallPL >= 0 ? '#e8f5e9' : '#ffebee', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
+                    {overallPL >= 0 ? (
+                        <TrendingUpIcon sx={{ fontSize: 40, color: '#388e3c', mb: 1 }} />
                     ) : (
-                    <TrendingDownIcon className="falling" sx={{ fontSize: 40, color: '#d32f2f', mb: 1 }} />
+                        <TrendingDownIcon sx={{ fontSize: 40, color: '#d32f2f', mb: 1 }} />
                     )}
-                    <Typography variant="caption" fontWeight={700} sx={{ color: returns >= 0 ? '#388e3c' : '#d32f2f', fontSize: '1.1rem', mb: 0.5 }}>Returns</Typography>
-                    <Typography variant="h4" fontWeight={800} sx={{ color: returns >= 0 ? '#388e3c' : '#d32f2f', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{returns}</Typography>
+                    <Typography variant="caption" fontWeight={700} sx={{ color: overallPL >= 0 ? '#388e3c' : '#d32f2f', fontSize: '1.1rem', mb: 0.5 }}>Overall {overallPL >= 0 ? 'Profit' : 'Loss'}</Typography>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: overallPL >= 0 ? '#388e3c' : '#d32f2f', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>₹{formatINR(overallPL)}</Typography>
                 </Card>
-                {/* # Investments */}
+                {/* # Investments count*/}
                 <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: '#f3e5f5', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
                     <AllInclusiveIcon sx={{ fontSize: 40, color: '#7b1fa2', mb: 1 }} />
                     <Typography variant="caption" fontWeight={700} sx={{ color: '#7b1fa2', fontSize: '1.1rem', mb: 0.5 }}># Investments</Typography>
                     <Typography variant="h4" fontWeight={800} sx={{ color: '#7b1fa2', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>{numInvestments}</Typography>
                 </Card>
-                {/* # Received */}
+                {/* # Withdrawals count*/}
                 <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: '#ffe0b2', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
                     <CallReceivedIcon sx={{ fontSize: 40, color: '#f57c00', mb: 1 }} />
-                    <Typography variant="caption" fontWeight={700} sx={{ color: '#f57c00', fontSize: '1.1rem', mb: 0.5 }}># Received</Typography>
-                    <Typography variant="h4" fontWeight={800} sx={{ color: '#f57c00', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>{numReceived}</Typography>
+                    <Typography variant="caption" fontWeight={700} sx={{ color: '#f57c00', fontSize: '1.1rem', mb: 0.5 }}># Withdrawals</Typography>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: '#f57c00', mt: 1, fontSize: '2.2rem', lineHeight: 1.1 }}>{numWithdraw}</Typography>
                 </Card>
-                {/* Invest Duration */}
+                {/* Investment Duration */}
                 <Card className="card-animate" sx={{ minWidth: 220, maxWidth: 220, bgcolor: '#e0f7fa', borderRadius: 4, boxShadow: 3, p: 3, textAlign: 'center', flex: '0 0 auto', mx: 1, scrollSnapAlign: 'center' }}>
                     <TrendingUpIcon sx={{ fontSize: 40, color: '#0288d1', mb: 1 }} />
                     <Typography variant="caption" fontWeight={700} sx={{ color: '#0288d1', fontSize: '1.1rem', mb: 0.5 }}>Invest Duration</Typography>
@@ -278,27 +313,30 @@ export default function Dashboard({ transactions, onAddTransaction }) {
                 </Box>
             </Box>
             <Box sx={{ mb: 3, p: 2, bgcolor: '#fff', borderRadius: 4, boxShadow: 2 }}>
-                
-                <InvestmentGraph data={graphData} />
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color: 'primary.main' }}>Business Performance</Typography>
+                <BusinessPerformanceAreaChart data={getBusinessPerformanceData(investments)} />
             </Box>
+            {/* <Box sx={{ mb: 3, p: 2, bgcolor: '#fff', borderRadius: 4, boxShadow: 2 }}>
+                <InvestmentGraph data={graphData} />
+            </Box> */}
             {/* Date & Amount Metrics - Stylish Card */}
             <Card sx={{ bgcolor: '#fff', borderRadius: 4, boxShadow: 2, p: 2, mb: 3 }}>
                 <CardContent sx={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', gap: 2 }}>
                 <Box sx={{ textAlign: 'center' }}>
                     <CallReceivedIcon color="success" sx={{ fontSize: 28, mb: 0.5 }} />
-                    <Typography variant="caption" color="success.main" fontWeight={600}>Last Received</Typography>
+                    <Typography variant="caption" color="success.main" fontWeight={600}>Last Withdrawn</Typography>
                     <Typography variant="body1" fontWeight={700} color="success.main" sx={{ mt: 0.5 }}>
-                    {lastReceivedObj ? `₹${lastReceivedObj.amount}` : '--'}
+                    {lastWithdrawObj ? `₹${formatINR(lastWithdrawObj.amount)}` : '--'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                    {lastReceivedObj ? new Date(lastReceivedObj.date).toLocaleDateString() : '--'}
+                    {lastWithdrawObj ? new Date(lastWithdrawObj.date).toLocaleDateString() : '--'}
                     </Typography>
                 </Box>
                 <Box sx={{ textAlign: 'center' }}>
                     <TrendingUpIcon color="info" sx={{ fontSize: 28, mb: 0.5 }} />
                     <Typography variant="caption" color="info.main" fontWeight={600}>Last Invested</Typography>
                     <Typography variant="body1" fontWeight={700} color="info.main" sx={{ mt: 0.5 }}>
-                    {lastInvestObj ? `₹${lastInvestObj.amount}` : '--'}
+                    {lastInvestObj ? `₹${formatINR(lastInvestObj.amount)}` : '--'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                     {lastInvestObj ? new Date(lastInvestObj.date).toLocaleDateString() : '--'}
@@ -308,7 +346,7 @@ export default function Dashboard({ transactions, onAddTransaction }) {
                     <AttachMoneyIcon color="primary" sx={{ fontSize: 28, mb: 0.5 }} />
                     <Typography variant="caption" color="primary" fontWeight={600}>First Invested</Typography>
                     <Typography variant="body1" fontWeight={700} color="primary.main" sx={{ mt: 0.5 }}>
-                    {firstInvestObj ? `₹${firstInvestObj.amount}` : '--'}
+                    {firstInvestObj ? `₹${formatINR(firstInvestObj.amount)}` : '--'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                     {firstInvestObj ? new Date(firstInvestObj.date).toLocaleDateString() : '--'}
